@@ -31,43 +31,36 @@ enum class BoosterType(
 ) {
     SPEED_1(Material.FEATHER, "Velocidad I", "<#00FF00>") {
         override fun applyEffect(player: Player, plugin: LiricTNTPlugin) {
-            // Amplificador 0 = Nivel 1. Duración: 10 segundos (200 ticks)
             player.addPotionEffect(PotionEffect(PotionEffectType.SPEED, 200, 0))
         }
     },
     SPEED_2(Material.FEATHER, "Velocidad II", "<#00FF00>") {
         override fun applyEffect(player: Player, plugin: LiricTNTPlugin) {
-            // Amplificador 1 = Nivel 2. Duración: 6 segundos (120 ticks)
             player.addPotionEffect(PotionEffect(PotionEffectType.SPEED, 120, 1))
         }
     },
     SPEED_3(Material.FEATHER, "Velocidad III", "<#00FF00>") {
         override fun applyEffect(player: Player, plugin: LiricTNTPlugin) {
-            // Amplificador 2 = Nivel 3. Duración: 3.5 segundos (70 ticks)
             player.addPotionEffect(PotionEffect(PotionEffectType.SPEED, 70, 2))
         }
     },
     JUMP_1(Material.RABBIT_FOOT, "Súper Salto I", "<#FFFF00>") {
         override fun applyEffect(player: Player, plugin: LiricTNTPlugin) {
-            // Amplificador 0 = Nivel 1. Duración: 10 segundos (200 ticks)
             player.addPotionEffect(PotionEffect(PotionEffectType.JUMP_BOOST, 200, 0))
         }
     },
     JUMP_2(Material.RABBIT_FOOT, "Súper Salto II", "<#FFFF00>") {
         override fun applyEffect(player: Player, plugin: LiricTNTPlugin) {
-            // Amplificador 1 = Nivel 2. Duración: 6 segundos (120 ticks)
             player.addPotionEffect(PotionEffect(PotionEffectType.JUMP_BOOST, 120, 1))
         }
     },
     JUMP_3(Material.RABBIT_FOOT, "Súper Salto III", "<#FFFF00>") {
         override fun applyEffect(player: Player, plugin: LiricTNTPlugin) {
-            // Amplificador 2 = Nivel 3. Duración: 3.5 segundos (70 ticks)
             player.addPotionEffect(PotionEffect(PotionEffectType.JUMP_BOOST, 70, 2))
         }
     },
     MIX(Material.BLAZE_POWDER, "Mix Poder", "<#FF00FF>") { // Magenta
         override fun applyEffect(player: Player, plugin: LiricTNTPlugin) {
-            // Mezcla de nivel 2 pero con corta duración (5 segundos)
             player.addPotionEffect(PotionEffect(PotionEffectType.SPEED, 100, 1))
             player.addPotionEffect(PotionEffect(PotionEffectType.JUMP_BOOST, 100, 1))
         }
@@ -95,7 +88,8 @@ data class ActiveBooster(
     var task: ScheduledTask? = null
 )
 
-abstract class Arena(val plugin: LiricTNTPlugin, val name: String, val type: String) {
+// AÑADIDO: instanceName (para bukkit) y displayName (para mensajes)
+abstract class Arena(val plugin: LiricTNTPlugin, val instanceName: String, val displayName: String, val type: String) {
     val mm = MiniMessage.miniMessage()
 
     // Colores Resaltantes Sólidos
@@ -143,7 +137,8 @@ abstract class Arena(val plugin: LiricTNTPlugin, val name: String, val type: Str
 
         alivePlayers.add(player)
         player.teleportAsync(spawns.random())
-        player.sendMessage(mm.deserialize("$cGreen<b>+</b> ${cWhite}Entraste a la arena: $cAqua$name"))
+        // Usamos displayName aquí
+        player.sendMessage(mm.deserialize("$cGreen<b>+</b> ${cWhite}Entraste a la arena: $cAqua$displayName"))
     }
 
     fun eliminate(player: Player) {
@@ -168,7 +163,8 @@ abstract class Arena(val plugin: LiricTNTPlugin, val name: String, val type: Str
         val winner = alivePlayers.firstOrNull()
 
         if (winner != null) {
-            plugin.server.broadcast(mm.deserialize("<newline>$cYellow<b>EVENTO</b> ${cWhite}» $cPurple${winner.name} ${cWhite}ha ganado en <b>$name</b>!<newline>"))
+            // Usamos displayName aquí
+            plugin.server.broadcast(mm.deserialize("<newline>$cYellow<b>EVENTO</b> ${cWhite}» $cPurple${winner.name} ${cWhite}ha ganado en <b>$displayName</b>!<newline>"))
             winner.playSound(winner.location, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f)
         }
 
@@ -204,7 +200,8 @@ abstract class Arena(val plugin: LiricTNTPlugin, val name: String, val type: Str
         alivePlayers.clear()
         spectators.clear()
         state = ArenaState.WAITING
-        plugin.server.broadcast(mm.deserialize("$cRed<b>!</b> ${cWhite}La arena $cAqua$name ${cWhite}ha sido reiniciada."))
+        // Usamos displayName aquí
+        plugin.server.broadcast(mm.deserialize("$cRed<b>!</b> ${cWhite}La arena $cAqua$displayName ${cWhite}ha sido reiniciada."))
     }
 
     abstract fun startTasks()

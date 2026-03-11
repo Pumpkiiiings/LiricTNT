@@ -15,7 +15,7 @@ object GamemodeCommand {
     private const val cAqua = "#00FFFF"
     private const val cYellow = "#FFFF00"
     private const val cWhite = "#FFFFFF"
-    private const val prefix = "⚡ <bold><$cRed>EVENTOS</$cRed> <$cWhite>»</$cWhite> "
+    private const val prefix = "<bold><$cRed>EVENTOS</$cRed></bold> <gray>»</gray> "
 
     fun register(commands: Commands, plugin: LiricTNTPlugin) {
         val root = Commands.literal("gm")

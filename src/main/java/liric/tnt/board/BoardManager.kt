@@ -55,7 +55,7 @@ class BoardManager(private val plugin: LiricTNTPlugin) {
                 val isTag = arena is TntTag
                 val timerStr = if (isTag) (arena as TntTag).timer.toString() else "0"
 
-                val arenaName = arena?.name?.uppercase() ?: "LOBBY"
+                val arenaName = arena?.displayName?.uppercase() ?: "LOBBY"
                 val modeName = arena?.type?.uppercase() ?: "NINGUNO"
                 val aliveStr = arena?.alivePlayers?.size?.toString() ?: "0"
                 val deadStr = arena?.spectators?.size?.toString() ?: "0"

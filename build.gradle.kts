@@ -49,7 +49,6 @@ dependencies {
     // Librerías que se incluirán en el JAR (Shadow)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     implementation("com.github.retrooper:packetevents-spigot:2.11.2")
-    implementation("fr.skytasul:glowingentities:1.4.10")
     implementation("dev.triumphteam:triumph-gui:3.1.13")
     implementation("com.infernalsuite.asp:file-loader:4.0.0-SNAPSHOT")
 
@@ -81,8 +80,6 @@ tasks {
         relocate("io.github.retrooper.packetevents", "liric.mistaken.libs.packetevents")
         relocate("dev.triumphteam.gui", "liric.mistaken.libs.gui")
         relocate("kotlin", "liric.mistaken.libs.kotlin")
-        relocate("fr.skytasul.glowingentities", "liric.mistaken.libs.glowing")
-
         // AQUÍ ESTÁ LO QUE FALTABA PARA QUITAR LO ROJO:
         relocate("kotlinx", "liric.mistaken.libs.kotlinx")
     }
@@ -101,7 +98,7 @@ tasks {
         val props = mapOf("version" to version)
         inputs.properties(props)
         filteringCharset = "UTF-8"
-        filesMatching("paper-plugin.yml") {
+        filesMatching("plugin.yml") {
             expand(props)
         }
     }

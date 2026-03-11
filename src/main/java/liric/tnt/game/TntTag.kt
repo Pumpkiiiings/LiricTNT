@@ -12,7 +12,7 @@ import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
 import java.util.concurrent.TimeUnit
 
-class TntTag(plugin: LiricTNTPlugin, name: String) : Arena(plugin, name, "tag") {
+class TntTag(plugin: LiricTNTPlugin, instanceName: String, displayName: String) : Arena(plugin, instanceName, displayName, "tag") {
 
     val itPlayers = mutableSetOf<Player>()
     var timer = 30

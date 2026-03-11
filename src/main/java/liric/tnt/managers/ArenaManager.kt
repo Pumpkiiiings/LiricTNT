@@ -34,14 +34,13 @@ class ArenaManager(private val plugin: LiricTNTPlugin) {
     private val arenasFile = File(plugin.dataFolder, "arenas.yml")
     private var arenasConfig = YamlConfiguration.loadConfiguration(arenasFile)
 
-    // 🔥 EL SECRETO DEL ÉXITO: Separar las plantillas de los juegos activos
-    private val templates = ConcurrentHashMap<String, ArenaTemplate>()
-    val activeArenas = mutableMapOf<String, Arena>() // Aquí van las instanciadas
+    // AÑADIDO: 'val' pública para que el autocompletado del comando pueda sugerir los nombres limpios
+    val templates = ConcurrentHashMap<String, ArenaTemplate>()
+    val activeArenas = mutableMapOf<String, Arena>()
 
     var mainLobby: Location? = null
     var waitingSpawn: Location? = null
 
-    // Clase de datos para guardar la configuración en memoria sin cargar mundos
     data class ArenaTemplate(val name: String, var type: String, val spawns: MutableList<Location> = mutableListOf())
 
     init {
@@ -52,9 +51,6 @@ class ArenaManager(private val plugin: LiricTNTPlugin) {
         loadGlobalLocations()
     }
 
-    /**
-     * Paso 1: Cargar PLANTILLAS desde el YAML sin instanciar mundos todavía.
-     */
     fun loadStoredArenas() {
         val section = arenasConfig.getConfigurationSection("arenas") ?: return
         val keys = section.getKeys(false)
@@ -65,7 +61,6 @@ class ArenaManager(private val plugin: LiricTNTPlugin) {
             val type = arenasConfig.getString("arenas.$name.type") ?: "tag"
             val template = ArenaTemplate(name, type)
 
-            // Cargamos los spawns con la Magia Anti-Leaks (Mundo Null)
             val spawnsSection = arenasConfig.getConfigurationSection("arenas.$name.spawns")
             if (spawnsSection != null) {
                 for (key in spawnsSection.getKeys(false)) {
@@ -82,14 +77,11 @@ class ArenaManager(private val plugin: LiricTNTPlugin) {
         }
     }
 
-    /**
-     * Guarda una plantilla en el archivo YAML (Se usa al crear o añadir spawns).
-     */
     private fun saveTemplateToConfig(template: ArenaTemplate) {
         val path = "arenas.${template.name}"
         arenasConfig.set("$path.type", template.type)
 
-        arenasConfig.set("$path.spawns", null) // Limpiar viejos
+        arenasConfig.set("$path.spawns", null)
         template.spawns.forEachIndexed { index, loc ->
             val spawnPath = "$path.spawns.$index"
             arenasConfig.set("$spawnPath.x", loc.x)
@@ -101,15 +93,10 @@ class ArenaManager(private val plugin: LiricTNTPlugin) {
         arenasConfig.save(arenasFile)
     }
 
-    /**
-     * Paso 2: Crear un mapa e instanciar la Arena real basándose en la Plantilla.
-     */
     fun setupArena(templateName: String, type: String? = null): CompletableFuture<Arena?> {
         val future = CompletableFuture<Arena?>()
 
-        // 1. Verificar si la plantilla existe
         val template = templates[templateName] ?: run {
-            // Si no existe, la creamos (ej: desde el comando /tnt arena create)
             val newTemplate = ArenaTemplate(templateName, type ?: "tag")
             templates[templateName] = newTemplate
             saveTemplateToConfig(newTemplate)
@@ -157,18 +144,18 @@ class ArenaManager(private val plugin: LiricTNTPlugin) {
                             setGameRule(GameRule.DO_FIRE_TICK, false)
                         }
 
+                        // AÑADIDO: Pasamos tanto el instanceName (Para Bukkit) como el templateName (Para Scoreboard)
                         val arena: Arena = when (template.type.lowercase()) {
-                            "tag" -> TntTag(plugin, instanceName) // Usar instanceName, no templateName
-                            "run" -> TntRun(plugin, instanceName)
-                            else -> TntTag(plugin, instanceName)
+                            "tag" -> TntTag(plugin, instanceName, templateName)
+                            "run" -> TntRun(plugin, instanceName, templateName)
+                            else -> TntTag(plugin, instanceName, templateName)
                         }
 
-                        // INYECCIÓN: Pasamos las locations de la plantilla a la arena activa y les asignamos el mundo clonado
                         template.spawns.forEach { loc ->
                             arena.spawns.add(Location(bukkitWorld, loc.x, loc.y, loc.z, loc.yaw, loc.pitch))
                         }
 
-                        activeArenas[instanceName] = arena // Registramos la instancia, no la plantilla
+                        activeArenas[instanceName] = arena
 
                         plugin.componentLogger.info(mm.deserialize("<$pGreen>[ArenaManager] Instancia creada: <$pBlue>${bukkitWorld.name}</$pBlue> <$pPurple>[${template.type.uppercase()}]</$pPurple>"))
                         future.complete(arena)
@@ -186,10 +173,6 @@ class ArenaManager(private val plugin: LiricTNTPlugin) {
         return future
     }
 
-    /**
-     * Añade un spawn a una PLANTILLA.
-     * Importante: Pasarle el templateName (ej: "Mapa1"), no la instancia activa.
-     */
     fun addSpawn(templateName: String, location: Location) {
         val template = templates[templateName]
         if (template != null) {
@@ -201,22 +184,17 @@ class ArenaManager(private val plugin: LiricTNTPlugin) {
         }
     }
 
-    /**
-     * Descarga y elimina por completo una instancia de arena (Regeneración)
-     */
     fun unloadArena(instanceName: String) {
         val arena = activeArenas.remove(instanceName) ?: return
         val world = arena.spawns.firstOrNull()?.world ?: Bukkit.getWorld(instanceName)
 
         if (world != null) {
             plugin.server.globalRegionScheduler.execute(plugin) {
-                Bukkit.unloadWorld(world, false) // false = NO GUARDAR CAMBIOS (Regeneración)
+                Bukkit.unloadWorld(world, false)
                 plugin.componentLogger.info(mm.deserialize("<$pBlue>[ArenaManager] Mundo $instanceName destruido (Se regenerará limpio)."))
             }
         }
     }
-
-    // --- MANEJO DEL LOBBY ---
 
     fun setMainLobbyLoc(loc: Location) {
         this.mainLobby = loc
@@ -242,14 +220,8 @@ class ArenaManager(private val plugin: LiricTNTPlugin) {
         }
     }
 
-    /**
-     * Obtiene una arena ACTIVA (para comandos de detener, etc.)
-     */
     fun getArenaByName(instanceName: String): Arena? = activeArenas[instanceName]
 
-    /**
-     * Obtiene en qué arena ACTIVA está jugando un jugador.
-     */
     fun getArena(player: Player): Arena? = activeArenas.values.find {
         it.alivePlayers.contains(player) || it.spectators.contains(player)
     }

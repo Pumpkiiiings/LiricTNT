@@ -26,7 +26,7 @@ class DeathListener(private val plugin: LiricTNTPlugin) : Listener {
         // Nota: El respawn ocurre solo por la GameRule que activamos en el onEnable
         val deathMsg = plugin.messageManager.parse(
             player,
-            "☠ <bold>$cRed MUERTE $cWhite</bold> » $cAqua<player> $cWhite ha muerto.",
+            "$cRed☠<bold>$cRed MUERTE $cWhite</bold>» $cAqua<player> $cWhite ha muerto.",
             Placeholder.component("player", player.name())
         )
 

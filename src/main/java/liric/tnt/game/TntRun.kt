@@ -10,7 +10,7 @@ import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 
-class TntRun(plugin: LiricTNTPlugin, name: String) : Arena(plugin, name, "run") {
+class TntRun(plugin: LiricTNTPlugin, instanceName: String, displayName: String) : Arena(plugin, instanceName, displayName, "run") {
 
     var isPreparation = false
     var timer = 10

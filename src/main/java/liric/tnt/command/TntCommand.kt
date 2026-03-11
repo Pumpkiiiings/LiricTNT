@@ -131,7 +131,7 @@ object TntCommand {
                         }
 
                         arena.startTasks()
-                        sender.sendMessage(mm.deserialize("$prefix<$cGreen>🔥 <bold>¡EVENTO INICIADO EN ${arena.name}!</bold> 🔥"))
+                        sender.sendMessage(mm.deserialize("$prefix<$cGreen>🔥 <bold>¡EVENTO INICIADO EN ${arena.displayName}!</bold> 🔥"))
                     }
                     1
                 })
