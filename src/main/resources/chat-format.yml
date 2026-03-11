@@ -1,0 +1,6 @@
+ranks:
+  default:
+    format: "<prefix> <player><suffix> <_gray>» <white><message>"
+    click: "/msg <player> "
+    hover:
+      - "<white>¡Haz clic para enviarle un mensaje!"

@@ -1,0 +1,221 @@
+package liric.tnt.game
+
+import liric.tnt.LiricTNTPlugin
+import net.kyori.adventure.title.Title
+import org.bukkit.Material
+import org.bukkit.NamespacedKey
+import org.bukkit.Sound
+import org.bukkit.entity.Player
+import org.bukkit.inventory.ItemStack
+import org.bukkit.persistence.PersistentDataType
+import org.bukkit.potion.PotionEffect
+import org.bukkit.potion.PotionEffectType
+import java.util.concurrent.TimeUnit
+
+class TntTag(plugin: LiricTNTPlugin, name: String) : Arena(plugin, name, "tag") {
+
+    val itPlayers = mutableSetOf<Player>()
+    var timer = 30
+    var isPreparation = false
+    var intenseMusicPlayed = false
+    var borderShrinked = false
+
+    override fun startTasks() {
+        state = ArenaState.INGAME
+        isPreparation = true
+        timer = 10
+        itPlayers.clear()
+        intenseMusicPlayed = false
+        borderShrinked = false
+
+        // Reseteo del Borde al iniciar
+        val spawnLoc = spawns.firstOrNull()
+        if (spawnLoc != null) {
+            plugin.server.regionScheduler.run(plugin, spawnLoc) { _ ->
+                val border = spawnLoc.world.worldBorder
+                border.center = spawnLoc
+                border.size = 500.0
+                border.damageAmount = 2.0
+            }
+        }
+
+        plugin.server.globalRegionScheduler.run(plugin) { _ ->
+            startBoosterTask()
+        }
+
+        // Bucle principal
+        plugin.server.asyncScheduler.runAtFixedRate(plugin, { task ->
+            if (state != ArenaState.INGAME) {
+                task.cancel()
+                return@runAtFixedRate
+            }
+
+            timer--
+
+            // --- FASE DE PREPARACIÓN ---
+            if (isPreparation) {
+                val bar = plugin.mm.deserialize("$cWhite La TNT se repartirá en: $cAqua<bold>$timer</bold>s")
+                alivePlayers.forEach { p ->
+                    p.sendActionBar(bar)
+                    p.playSound(p.location, Sound.BLOCK_NOTE_BLOCK_HAT, 0.5f, 1f)
+                }
+
+                if (timer <= 0) {
+                    isPreparation = false
+                    timer = 30
+                    plugin.server.globalRegionScheduler.run(plugin) { _ ->
+                        selectNewIts()
+                        giveAbilities() // <--- Entregamos las habilidades aquí
+                    }
+                }
+                return@runAtFixedRate
+            }
+
+            // --- EVENTOS CUANDO QUEDAN 6 JUGADORES O MENOS ---
+            if (alivePlayers.size <= 6) {
+                if (!intenseMusicPlayed) {
+                    intenseMusicPlayed = true
+                    val allPlayers = alivePlayers + spectators
+                    allPlayers.forEach { p ->
+                        val customSound = net.kyori.adventure.sound.Sound.sound(
+                            net.kyori.adventure.key.Key.key("mistaken", "lms"),
+                            net.kyori.adventure.sound.Sound.Source.MASTER,
+                            1f, 1f
+                        )
+                        p.playSound(customSound)
+                    }
+                }
+
+                if (!borderShrinked) {
+                    borderShrinked = true
+                    val centerLoc = spawns.firstOrNull()
+                    if (centerLoc != null) {
+                        plugin.server.regionScheduler.run(plugin, centerLoc) { _ ->
+                            val border = centerLoc.world.worldBorder
+                            border.center = centerLoc
+                            border.size = 120.0
+                            border.setSize(15.0, 45L)
+                        }
+
+                        val alertMsg = plugin.mm.deserialize("<newline>$cRed<b>¡ALERTA!</b> $cWhite ¡El borde de la arena se está reduciendo!<newline>")
+                        val allPlayers = alivePlayers + spectators
+                        allPlayers.forEach {
+                            it.sendMessage(alertMsg)
+                            it.playSound(it.location, Sound.ENTITY_ENDER_DRAGON_GROWL, 0.5f, 1.5f)
+                        }
+                    }
+                }
+            }
+
+            if (alivePlayers.size < 6) {
+                alivePlayers.forEach { p ->
+                    p.scheduler.run(plugin, { _ ->
+                        p.addPotionEffect(PotionEffect(PotionEffectType.GLOWING, 40, 0, false, false, false))
+                    }, null)
+                }
+            }
+
+            itPlayers.forEach { p ->
+                p.scheduler.run(plugin, { _ ->
+                    p.world.spawnParticle(org.bukkit.Particle.SMALL_FLAME, p.location.add(0.0, 2.2, 0.0), 3, 0.1, 0.1, 0.1, 0.02)
+                }, null)
+                p.playSound(p.location, Sound.BLOCK_NOTE_BLOCK_HAT, 0.8f, 1.2f)
+            }
+
+            val bar = plugin.mm.deserialize("$cWhite Explosión en: $cRed<bold>$timer</bold>s")
+            alivePlayers.forEach { it.sendActionBar(bar) }
+
+            if (timer <= 0) {
+                val victims = itPlayers.toList()
+                victims.forEach { p ->
+                    p.scheduler.run(plugin, { _ ->
+                        p.world.spawnParticle(org.bukkit.Particle.EXPLOSION_EMITTER, p.location, 1)
+                        p.world.playSound(p.location, Sound.ENTITY_GENERIC_EXPLODE, 1f, 1f)
+
+                        p.inventory.helmet = null
+                        eliminate(p)
+                    }, null)
+                }
+
+                if (alivePlayers.size > victims.size) {
+                    timer = 30
+                    plugin.server.globalRegionScheduler.runDelayed(plugin, { _ -> selectNewIts() }, 2L)
+                } else {
+                    state = ArenaState.ENDING
+                    task.cancel()
+                }
+            }
+        }, 1, 1, TimeUnit.SECONDS)
+    }
+
+    /**
+     * Entrega los ítems de Habilidad
+     */
+    private fun giveAbilities() {
+        val key = NamespacedKey(plugin, "tnt_item")
+
+        // 1. Dash
+        val dash = ItemStack(Material.SUGAR)
+        val dashMeta = dash.itemMeta
+        dashMeta.displayName(plugin.mm.deserialize("$cAqua<b>DASH EVASIVO</b>"))
+        dashMeta.persistentDataContainer.set(key, PersistentDataType.STRING, "dash")
+        dash.itemMeta = dashMeta
+
+        // 2. Doble Salto
+        val jump = ItemStack(Material.RABBIT_FOOT)
+        val jumpMeta = jump.itemMeta
+        jumpMeta.displayName(plugin.mm.deserialize("$cGreen<b>DOBLE SALTO</b>"))
+        jumpMeta.persistentDataContainer.set(key, PersistentDataType.STRING, "doublejump")
+        jump.itemMeta = jumpMeta
+
+        alivePlayers.forEach { p ->
+            p.inventory.setItem(1, dash)
+            p.inventory.setItem(2, jump)
+        }
+    }
+
+    fun handlePunch(attacker: Player, victim: Player) {
+        if (isPreparation) return
+
+        if (!itPlayers.contains(attacker)) return
+        if (itPlayers.contains(victim)) return
+        if (!alivePlayers.contains(victim)) return
+
+        itPlayers.remove(attacker)
+        itPlayers.add(victim)
+
+        attacker.inventory.helmet = null
+        victim.inventory.helmet = ItemStack(Material.TNT)
+
+        attacker.sendMessage(plugin.mm.deserialize("$cGreen<b>!</b> $cWhite ¡Te has librado de la TNT!"))
+        victim.sendMessage(plugin.mm.deserialize("$cRed<b>!</b> $cWhite ¡Ahora la tienes tú, pásala!"))
+
+        attacker.playSound(attacker.location, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f)
+        victim.playSound(victim.location, Sound.ENTITY_CREEPER_PRIMED, 1f, 1.2f)
+
+        victim.world.spawnParticle(org.bukkit.Particle.LAVA, victim.location.add(0.0, 1.0, 0.0), 5)
+    }
+
+    private fun selectNewIts() {
+        itPlayers.clear()
+
+        val amount = (alivePlayers.size / 4).coerceAtLeast(1)
+
+        alivePlayers.shuffled().take(amount).forEach { p ->
+            itPlayers.add(p)
+            p.inventory.helmet = ItemStack(Material.TNT)
+
+            p.showTitle(Title.title(
+                plugin.mm.deserialize("$cRed<b>¡TIENES LA TNT!</b>"),
+                plugin.mm.deserialize("$cWhite Pásala rápido golpeando a alguien")
+            ))
+            p.playSound(p.location, Sound.ENTITY_TNT_PRIMED, 1f, 1f)
+        }
+
+        val itNames = itPlayers.joinToString("$cWhite, $cAqua") { it.name }
+        val msg = plugin.mm.deserialize("<newline>$cRed<b>¡CUIDADO!</b> $cWhite La TNT ha sido entregada a: $cAqua$itNames<newline>")
+
+        alivePlayers.forEach { it.sendMessage(msg) }
+        spectators.forEach { it.sendMessage(msg) }
+    }
+}

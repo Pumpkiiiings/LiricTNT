@@ -1,0 +1,28 @@
+global:
+  mainLobby:
+    ==: org.bukkit.Location
+    world: Mistaken
+    x: 317.32315919808667
+    y: 54.0
+    z: 154.05654934861167
+    pitch: 3.0908628
+    yaw: -1.8334923
+  waitingSpawn:
+    ==: org.bukkit.Location
+    world: Mistaken
+    x: 317.32315919808667
+    y: 54.0
+    z: 154.05654934861167
+    pitch: 3.0908628
+    yaw: -1.8334923
+arenas:
+  Endercon:
+    type: tag
+    spawns:
+      - ==: org.bukkit.Location
+        world: Endercon
+        x: 158.14164169829527
+        y: 79.0
+        z: 85.03614636491898
+        pitch: 16.135326
+        yaw: -179.79355
