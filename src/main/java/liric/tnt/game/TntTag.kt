@@ -18,7 +18,10 @@ class TntTag(plugin: LiricTNTPlugin, instanceName: String, displayName: String) 
     var timer = 30
     var isPreparation = false
     var intenseMusicPlayed = false
-    var borderShrinked = false
+
+    // Variables de Borde
+    var borderStarted = false
+    var borderTimer = 30
 
     override fun startTasks() {
         state = ArenaState.INGAME
@@ -26,15 +29,16 @@ class TntTag(plugin: LiricTNTPlugin, instanceName: String, displayName: String) 
         timer = 10
         itPlayers.clear()
         intenseMusicPlayed = false
-        borderShrinked = false
+        borderStarted = false
+        borderTimer = 30
 
-        // Reseteo del Borde al iniciar
+        // Reseteo inicial del borde
         val spawnLoc = spawns.firstOrNull()
         if (spawnLoc != null) {
             plugin.server.regionScheduler.run(plugin, spawnLoc) { _ ->
                 val border = spawnLoc.world.worldBorder
                 border.center = spawnLoc
-                border.size = 500.0
+                border.size = 150.0 // Empieza grande
                 border.damageAmount = 2.0
             }
         }
@@ -43,7 +47,6 @@ class TntTag(plugin: LiricTNTPlugin, instanceName: String, displayName: String) 
             startBoosterTask()
         }
 
-        // Bucle principal
         plugin.server.asyncScheduler.runAtFixedRate(plugin, { task ->
             if (state != ArenaState.INGAME) {
                 task.cancel()
@@ -65,56 +68,68 @@ class TntTag(plugin: LiricTNTPlugin, instanceName: String, displayName: String) 
                     timer = 30
                     plugin.server.globalRegionScheduler.run(plugin) { _ ->
                         selectNewIts()
-                        giveAbilities() // <--- Entregamos las habilidades aquí
+                        giveAbilities()
                     }
                 }
                 return@runAtFixedRate
             }
 
-            // --- EVENTOS CUANDO QUEDAN 6 JUGADORES O MENOS ---
-            if (alivePlayers.size <= 6) {
+            // --- EVENTOS DE MUERTE SÚBITA (6 JUGADORES O MENOS) ---
+            if (alivePlayers.size <= 6 && alivePlayers.size > 1) {
+
+                // Música intensa una sola vez
                 if (!intenseMusicPlayed) {
                     intenseMusicPlayed = true
-                    val allPlayers = alivePlayers + spectators
-                    allPlayers.forEach { p ->
-                        val customSound = net.kyori.adventure.sound.Sound.sound(
-                            net.kyori.adventure.key.Key.key("mistaken", "lms"),
-                            net.kyori.adventure.sound.Sound.Source.MASTER,
-                            1f, 1f
-                        )
-                        p.playSound(customSound)
-                    }
+                    val customSound = net.kyori.adventure.sound.Sound.sound(
+                        net.kyori.adventure.key.Key.key("mistaken", "lms"),
+                        net.kyori.adventure.sound.Sound.Source.MASTER,
+                        1f, 1f
+                    )
+                    (alivePlayers + spectators).forEach { it.playSound(customSound) }
                 }
 
-                if (!borderShrinked) {
-                    borderShrinked = true
-                    val centerLoc = spawns.firstOrNull()
-                    if (centerLoc != null) {
-                        plugin.server.regionScheduler.run(plugin, centerLoc) { _ ->
-                            val border = centerLoc.world.worldBorder
-                            border.center = centerLoc
-                            border.size = 120.0
-                            border.setSize(15.0, 45L)
-                        }
-
-                        val alertMsg = plugin.mm.deserialize("<newline>$cRed<b>¡ALERTA!</b> $cWhite ¡El borde de la arena se está reduciendo!<newline>")
-                        val allPlayers = alivePlayers + spectators
-                        allPlayers.forEach {
-                            it.sendMessage(alertMsg)
-                            it.playSound(it.location, Sound.ENTITY_ENDER_DRAGON_GROWL, 0.5f, 1.5f)
-                        }
-                    }
-                }
-            }
-
-            if (alivePlayers.size < 6) {
+                // Brillo a todos
                 alivePlayers.forEach { p ->
                     p.scheduler.run(plugin, { _ ->
                         p.addPotionEffect(PotionEffect(PotionEffectType.GLOWING, 40, 0, false, false, false))
                     }, null)
                 }
+
+                // Lógica del Borde (Igual que en TNT Run)
+                val world = spawns.firstOrNull()?.world
+                if (world != null) {
+                    if (!borderStarted) {
+                        borderStarted = true
+
+                        alivePlayers.forEach {
+                            it.sendMessage(plugin.mm.deserialize("<newline>$cRed<b>¡MUERTE SÚBITA!</b> $cWhite El borde se cerrará cada 30s.<newline>"))
+                            it.playSound(it.location, Sound.ENTITY_ENDER_DRAGON_GROWL, 1f, 1f)
+                        }
+                    } else {
+                        borderTimer--
+
+                        if (borderTimer <= 10 && borderTimer > 0) {
+                            val borderBar = plugin.mm.deserialize("${cRed}<b>⚠ CIERRE DE BORDE:</b> ${cYellow}$borderTimer")
+                            alivePlayers.forEach { it.sendActionBar(borderBar) }
+                        }
+
+                        if (borderTimer <= 0) {
+                            borderTimer = 30
+                            val border = world.worldBorder
+                            // Reduce 15 bloques de golpe cada 30s
+                            val newSize = (border.size - 15.0).coerceAtLeast(10.0)
+                            border.setSize(newSize, 5L)
+
+                            alivePlayers.forEach {
+                                it.sendActionBar(plugin.mm.deserialize("${cRed}<b>¡EL BORDE SE HA REDUCIDO!</b>"))
+                                it.playSound(it.location, Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 2f)
+                            }
+                        }
+                    }
+                }
             }
 
+            // Efectos de los IT
             itPlayers.forEach { p ->
                 p.scheduler.run(plugin, { _ ->
                     p.world.spawnParticle(org.bukkit.Particle.SMALL_FLAME, p.location.add(0.0, 2.2, 0.0), 3, 0.1, 0.1, 0.1, 0.02)
@@ -122,8 +137,11 @@ class TntTag(plugin: LiricTNTPlugin, instanceName: String, displayName: String) 
                 p.playSound(p.location, Sound.BLOCK_NOTE_BLOCK_HAT, 0.8f, 1.2f)
             }
 
-            val bar = plugin.mm.deserialize("$cWhite Explosión en: $cRed<bold>$timer</bold>s")
-            alivePlayers.forEach { it.sendActionBar(bar) }
+            // Barra de explosión
+            if (borderTimer > 10 || alivePlayers.size > 6) { // Para no solapar con el aviso del borde
+                val bar = plugin.mm.deserialize("$cWhite Explosión en: $cRed<bold>$timer</bold>s")
+                alivePlayers.forEach { it.sendActionBar(bar) }
+            }
 
             if (timer <= 0) {
                 val victims = itPlayers.toList()
@@ -148,20 +166,15 @@ class TntTag(plugin: LiricTNTPlugin, instanceName: String, displayName: String) 
         }, 1, 1, TimeUnit.SECONDS)
     }
 
-    /**
-     * Entrega los ítems de Habilidad
-     */
     private fun giveAbilities() {
         val key = NamespacedKey(plugin, "tnt_item")
 
-        // 1. Dash
         val dash = ItemStack(Material.SUGAR)
         val dashMeta = dash.itemMeta
         dashMeta.displayName(plugin.mm.deserialize("$cAqua<b>DASH EVASIVO</b>"))
         dashMeta.persistentDataContainer.set(key, PersistentDataType.STRING, "dash")
         dash.itemMeta = dashMeta
 
-        // 2. Doble Salto
         val jump = ItemStack(Material.RABBIT_FOOT)
         val jumpMeta = jump.itemMeta
         jumpMeta.displayName(plugin.mm.deserialize("$cGreen<b>DOBLE SALTO</b>"))

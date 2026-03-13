@@ -25,6 +25,7 @@ object TntCommand {
         val root = Commands.literal("tnt")
             .requires { it.sender.hasPermission("tnt.admin") }
 
+        // --- HELP ---
         val help = Commands.literal("help").executes { ctx ->
             val s = ctx.source.sender
             s.sendMessage(mm.deserialize(""))
@@ -44,16 +45,18 @@ object TntCommand {
             1
         }
 
+        // --- RELOAD ---
         val reload = Commands.literal("reload")
             .requires { it.sender.hasPermission("tnt.admin.reload") }
             .executes { ctx ->
                 plugin.reloadConfig()
                 plugin.boardManager.reload()
-                plugin.arenaManager.loadStoredArenas() // Recargar plantillas de arenas.yml
+                plugin.arenaManager.loadStoredArenas()
                 ctx.source.sender.sendMessage(mm.deserialize("$prefix<$cGreen>✔ <$cWhite>Configuración y Plantillas recargadas <$cGreen>🧪"))
                 1
             }
 
+        // --- SETUP ---
         val setup = Commands.literal("setup")
             .requires { it.sender.hasPermission("tnt.admin.setup") }
             .then(Commands.literal("lobby").executes { ctx ->
@@ -69,12 +72,16 @@ object TntCommand {
                 1
             })
 
+        // --- ARENA ---
         val arena = Commands.literal("arena")
             .requires { it.sender.hasPermission("tnt.admin.arena") }
             .then(Commands.literal("create")
                 .then(Commands.argument("name", StringArgumentType.string())
                     .then(Commands.argument("type", StringArgumentType.word())
-                        .suggests { _, builder -> builder.suggest("tag").suggest("run").buildFuture() }
+                        .suggests { _, builder ->
+                            // Sugerencias para el TIPO
+                            builder.suggest("tag").suggest("run").buildFuture()
+                        }
                         .executes { ctx ->
                             val sender = ctx.source.sender
                             val name = StringArgumentType.getString(ctx, "name")
@@ -88,12 +95,11 @@ object TntCommand {
             .then(Commands.literal("addspawn")
                 .then(Commands.argument("target", StringArgumentType.string())
                     .suggests { _, builder ->
-                        // Sugerir nombres de plantillas para añadir spawns
-                        // Usamos un acceso a través de activeArenas o un método en ArenaManager si fuera necesario,
-                        // pero aquí usamos la lógica de plantillas cargadas.
-                        1 // Placeholder para el builder
-                        plugin.server.asyncScheduler.runNow(plugin) {
-                            // Este proceso es asíncrono para no trabar el autocompletado
+                        // AUTOCOMPLETADO: Sugerir nombres de PLANTILLAS
+                        if (plugin.arenaManager.templates.isEmpty()) {
+                            builder.suggest("No_hay_plantillas")
+                        } else {
+                            plugin.arenaManager.templates.keys.forEach { builder.suggest(it) }
                         }
                         builder.buildFuture()
                     }
@@ -105,13 +111,17 @@ object TntCommand {
                         1
                     }))
 
+        // --- INICIAR ---
         val iniciar = Commands.literal("iniciar")
             .requires { it.sender.hasPermission("tnt.admin.start") }
             .then(Commands.argument("template", StringArgumentType.string())
                 .suggests { _, builder ->
-                    // Sugerir solo plantillas disponibles (No las instancias)
-                    // Nota: Asegúrate de que ArenaManager tenga una forma de ver las plantillas cargadas
-                    // Si no, puedes usar Bukkit.getWorlds() filtrando o una lista interna.
+                    // AUTOCOMPLETADO: Sugerir PLANTILLAS para clonar
+                    if (plugin.arenaManager.templates.isEmpty()) {
+                        builder.suggest("No_hay_plantillas")
+                    } else {
+                        plugin.arenaManager.templates.keys.forEach { builder.suggest(it) }
+                    }
                     builder.buildFuture()
                 }
                 .executes { ctx ->
@@ -136,11 +146,16 @@ object TntCommand {
                     1
                 })
 
+        // --- DETENER ---
         val detener = Commands.literal("detener")
             .then(Commands.argument("instance", StringArgumentType.string())
                 .suggests { _, builder ->
-                    // Sugerir INSTANCIAS activas
-                    plugin.arenaManager.activeArenas.keys.forEach { builder.suggest(it) }
+                    // AUTOCOMPLETADO: Sugerir INSTANCIAS ACTIVAS
+                    if (plugin.arenaManager.activeArenas.isEmpty()) {
+                        builder.suggest("No_hay_juegos_activos")
+                    } else {
+                        plugin.arenaManager.activeArenas.keys.forEach { builder.suggest(it) }
+                    }
                     builder.buildFuture()
                 }
                 .executes { ctx ->
@@ -148,29 +163,41 @@ object TntCommand {
                     val a = plugin.arenaManager.getArenaByName(instanceName)
                     if (a != null) {
                         a.stop()
-                        // El método stop() debería llamar a unloadArena eventualmente
                         plugin.arenaManager.unloadArena(instanceName)
                         ctx.source.sender.sendMessage(mm.deserialize("$prefix<$cRed>🛑 <$cWhite>Instancia <$cRed>$instanceName <$cWhite>DESTRUIDA."))
+                    } else {
+                        ctx.source.sender.sendMessage(mm.deserialize("$prefix<$cRed>✘ <$cWhite>No se encontró la instancia activa: <$cRed>$instanceName"))
                     }
                     1
                 })
 
+        // --- ESPECTAR ---
         val spectate = Commands.literal("espectar")
             .then(Commands.argument("instance", StringArgumentType.string())
                 .suggests { _, builder ->
-                    plugin.arenaManager.activeArenas.keys.forEach { builder.suggest(it) }
+                    // AUTOCOMPLETADO: Sugerir INSTANCIAS ACTIVAS
+                    if (plugin.arenaManager.activeArenas.isEmpty()) {
+                        builder.suggest("No_hay_juegos_activos")
+                    } else {
+                        plugin.arenaManager.activeArenas.keys.forEach { builder.suggest(it) }
+                    }
                     builder.buildFuture()
                 }
                 .executes { ctx ->
                     val sender = ctx.source.sender as? Player ?: return@executes 0
                     val instanceName = StringArgumentType.getString(ctx, "instance")
-                    val a = plugin.arenaManager.getArenaByName(instanceName) ?: return@executes 0
+                    val a = plugin.arenaManager.getArenaByName(instanceName)
 
-                    SpectatorManager.setSpectator(sender, a)
-                    sender.sendMessage(mm.deserialize("$prefix<$cAqua>👁 <$cWhite>Entrando como espectador a $instanceName..."))
+                    if (a != null) {
+                        SpectatorManager.setSpectator(sender, a)
+                        sender.sendMessage(mm.deserialize("$prefix<$cAqua>👁 <$cWhite>Entrando como espectador a $instanceName..."))
+                    } else {
+                        sender.sendMessage(mm.deserialize("$prefix<$cRed>✘ <$cWhite>La partida $instanceName no está activa."))
+                    }
                     1
                 })
 
+        // --- REVIVIR ---
         val revivir = Commands.literal("revivir")
             .then(Commands.argument("player", ArgumentTypes.player()).executes { ctx ->
                 val resolver = ctx.getArgument("player", PlayerSelectorArgumentResolver::class.java)
@@ -180,6 +207,7 @@ object TntCommand {
                 1
             })
 
+        // --- DESCALIFICAR ---
         val descalificar = Commands.literal("descalificar")
             .then(Commands.argument("player", ArgumentTypes.player()).executes { ctx ->
                 val resolver = ctx.getArgument("player", PlayerSelectorArgumentResolver::class.java)
@@ -189,6 +217,7 @@ object TntCommand {
                 1
             })
 
+        // Registro final
         root.then(help).then(reload).then(setup).then(arena).then(iniciar).then(detener).then(spectate).then(revivir).then(descalificar)
         commands.register(root.build(), "TNT Minigame Suite by Pumpkingz")
     }

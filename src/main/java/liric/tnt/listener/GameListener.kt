@@ -17,6 +17,8 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent
 import org.bukkit.event.entity.ProjectileHitEvent
 import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.inventory.EquipmentSlot
+import org.bukkit.event.inventory.InventoryClickEvent
+import org.bukkit.event.player.PlayerDropItemEvent
 import org.bukkit.persistence.PersistentDataType
 
 class GameListener(private val plugin: LiricTNTPlugin) : Listener {
@@ -140,6 +142,31 @@ class GameListener(private val plugin: LiricTNTPlugin) : Listener {
             "pearl" -> {
                 player.playSound(player.location, Sound.ENTITY_ENDER_PEARL_THROW, 1f, 1f)
             }
+        }
+    }
+
+    @EventHandler
+    fun onDrop(e: PlayerDropItemEvent) {
+        val item = e.itemDrop.itemStack
+        val meta = item.itemMeta ?: return
+        val key = NamespacedKey(plugin, "tnt_item")
+
+        // Si tiene el tag de item del minijuego, no se puede tirar
+        if (meta.persistentDataContainer.has(key, PersistentDataType.STRING)) {
+            e.isCancelled = true
+        }
+    }
+
+    // --- EVITAR MOVER ITEMS EN EL INVENTARIO ---
+    @EventHandler
+    fun onClick(e: InventoryClickEvent) {
+        val item = e.currentItem ?: return
+        val meta = item.itemMeta ?: return
+        val key = NamespacedKey(plugin, "tnt_item")
+
+        // Si intentan mover un item del minijuego en el inventario, se cancela
+        if (meta.persistentDataContainer.has(key, PersistentDataType.STRING)) {
+            e.isCancelled = true
         }
     }
 
