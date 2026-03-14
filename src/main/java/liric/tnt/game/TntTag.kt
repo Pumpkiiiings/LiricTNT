@@ -117,7 +117,7 @@ class TntTag(plugin: LiricTNTPlugin, instanceName: String, displayName: String) 
                             borderTimer = 30
                             val border = world.worldBorder
                             // Reduce 15 bloques de golpe cada 30s
-                            val newSize = (border.size - 15.0).coerceAtLeast(10.0)
+                            val newSize = (border.size - 25.0).coerceAtLeast(10.0)
                             border.setSize(newSize, 5L)
 
                             alivePlayers.forEach {
