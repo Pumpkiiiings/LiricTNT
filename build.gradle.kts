@@ -45,9 +45,6 @@ repositories {
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     implementation(kotlin("stdlib"))
-
-    // Librerías que se incluirán en el JAR (Shadow)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     implementation("com.github.retrooper:packetevents-spigot:2.11.2")
     implementation("dev.triumphteam:triumph-gui:3.1.13")
     implementation("com.infernalsuite.asp:file-loader:4.0.0-SNAPSHOT")
@@ -79,9 +76,6 @@ tasks {
         relocate("com.github.retrooper.packetevents", "liric.mistaken.libs.packetevents")
         relocate("io.github.retrooper.packetevents", "liric.mistaken.libs.packetevents")
         relocate("dev.triumphteam.gui", "liric.mistaken.libs.gui")
-        relocate("kotlin", "liric.mistaken.libs.kotlin")
-        // AQUÍ ESTÁ LO QUE FALTABA PARA QUITAR LO ROJO:
-        relocate("kotlinx", "liric.mistaken.libs.kotlinx")
     }
 
     withType<JavaCompile> {

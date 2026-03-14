@@ -5,6 +5,7 @@ import io.github.retrooper.packetevents.factory.spigot.SpigotPacketEventsBuilder
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import liric.tnt.command.TntCommand
 import liric.tnt.command.GamemodeCommand
+import liric.tnt.command.ExtrasCommand
 import liric.tnt.managers.ArenaManager
 import liric.tnt.managers.PlayerManager
 import liric.tnt.managers.ChatFormatManager
@@ -67,6 +68,7 @@ class LiricTNTPlugin : JavaPlugin() {
         lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
             TntCommand.register(event.registrar(), this)
             GamemodeCommand.register(event.registrar(), this) // <--- ¡AQUÍ!
+            ExtrasCommand.register(event.registrar(), this)
         }
 
         // Registrar Eventos

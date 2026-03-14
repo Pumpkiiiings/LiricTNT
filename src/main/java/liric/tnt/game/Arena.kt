@@ -2,6 +2,7 @@ package liric.tnt.game
 
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import liric.tnt.LiricTNTPlugin
+import liric.tnt.game.entities.GeoffreyEXE // <-- Importación necesaria
 import liric.tnt.spectator.SpectatorManager
 import liric.tnt.utils.CraftEngineUtils
 import net.kyori.adventure.text.minimessage.MiniMessage
@@ -108,6 +109,14 @@ abstract class Arena(val plugin: LiricTNTPlugin, val instanceName: String, val d
     private val activeBoosters = ConcurrentLinkedQueue<ActiveBooster>()
     private var boosterTask: ScheduledTask? = null
 
+    // --- INTEGRACIÓN DE GEOFFREY ---
+    private var activeGeoffrey: GeoffreyEXE? = null
+
+    fun setGeoffrey(geoffrey: GeoffreyEXE) {
+        this.activeGeoffrey = geoffrey
+    }
+    // -------------------------------
+
     open fun getAvailableBoosters(): List<BoosterType> {
         return if (type.lowercase() == "run") {
             listOf(
@@ -174,6 +183,10 @@ abstract class Arena(val plugin: LiricTNTPlugin, val instanceName: String, val d
     fun stop() {
         state = ArenaState.ENDING
         boosterTask?.cancel()
+
+        // Limpieza del Boss si la partida termina o es forzada a parar
+        activeGeoffrey?.remove()
+        activeGeoffrey = null
 
         activeBoosters.forEach { booster ->
             booster.task?.cancel()

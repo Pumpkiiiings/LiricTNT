@@ -3,3 +3,19 @@ version: 1.8.3
 main: liric.tnt.LiricTNTPlugin
 api-version: '1.21'
 depend: [ASPaperPlugin]
+
+permissions:
+  tnt.admin:
+    description: Acceso base al comando TNT
+    default: op
+  tnt.admin.setup:
+    default: op
+  tnt.admin.arena:
+    default: op
+  tnt.admin.start:
+    default: op
+  tnt.admin.stop:
+    default: op
+  tnt.admin.extras:
+    description: Acceso al comando de extras y eventos
+    default: op

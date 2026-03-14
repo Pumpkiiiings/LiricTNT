@@ -80,7 +80,7 @@ object TntCommand {
                     .then(Commands.argument("type", StringArgumentType.word())
                         .suggests { _, builder ->
                             // Sugerencias para el TIPO
-                            builder.suggest("tag").suggest("run").buildFuture()
+                            builder.suggest("tag").suggest("run").suggest("spleef").buildFuture()
                         }
                         .executes { ctx ->
                             val sender = ctx.source.sender
