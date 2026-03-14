@@ -12,13 +12,10 @@ import org.bukkit.Sound
 import org.bukkit.entity.BlockDisplay
 import org.bukkit.entity.Display
 import org.bukkit.entity.Player
-import org.bukkit.potion.PotionEffect
-import org.bukkit.potion.PotionEffectType
 import org.bukkit.util.Transformation
 import org.joml.Quaternionf
 import org.joml.Vector3f
 import java.util.UUID
-import java.util.concurrent.ThreadLocalRandom
 
 class GeoffreyEXE(private val plugin: LiricTNTPlugin, private val arena: Arena) {
 
@@ -92,11 +89,12 @@ class GeoffreyEXE(private val plugin: LiricTNTPlugin, private val arena: Arena) 
             }
 
             val bodyLoc = parts[0].location
-            // Solo targetea a jugadores vivos de la arena actual
+
+            // Busca solo jugadores vivos de la arena
             currentTarget = arena.alivePlayers
                 .filter { it.uniqueId != lastVictimUUID }
                 .minByOrNull { it.location.distanceSquared(bodyLoc) }
-                ?: arena.alivePlayers.firstOrNull()
+                ?: arena.alivePlayers.minByOrNull { it.location.distanceSquared(bodyLoc) }
 
             if (currentTarget == null) return@runAtFixedRate
 
@@ -136,7 +134,10 @@ class GeoffreyEXE(private val plugin: LiricTNTPlugin, private val arena: Arena) 
         target.showTitle(Title.title(plugin.mm.deserialize("<red><b>GEOFFREY VIENE"), plugin.mm.deserialize("<dark_red>¡CORRE!")))
 
         plugin.server.globalRegionScheduler.runDelayed(plugin, {
-            if (!isRunning || !target.isOnline) return@runDelayed
+            if (!isRunning || !target.isOnline) {
+                currentState = State.BUSCANDO
+                return@runDelayed
+            }
 
             val dir = target.location.add(0.0, 1.0, 0.0).toVector().subtract(parts[0].location.toVector()).normalize()
             var step = 0
@@ -155,7 +156,7 @@ class GeoffreyEXE(private val plugin: LiricTNTPlugin, private val arena: Arena) 
 
                 val hit = arena.alivePlayers.find { it.location.distanceSquared(nextLoc) < 5.0 }
                 if (hit != null) {
-                    ejecutarMuerte(hit)
+                    ejecutarAtaque(hit)
                     consecutiveMisses = 0
                     task.cancel()
                     currentState = State.BUSCANDO
@@ -168,18 +169,42 @@ class GeoffreyEXE(private val plugin: LiricTNTPlugin, private val arena: Arena) 
     private fun ejecutarAtaqueAereo(target: Player) {
         var subida = 0
         plugin.server.globalRegionScheduler.runAtFixedRate(plugin, { task ->
+            if (!isRunning || arena.state != ArenaState.INGAME || !arena.alivePlayers.contains(target)) {
+                task.cancel()
+                currentState = State.BUSCANDO
+                return@runAtFixedRate
+            }
+
             if (subida >= 8) {
                 task.cancel()
                 plugin.server.globalRegionScheduler.runDelayed(plugin, {
+                    if (!isRunning || arena.state != ArenaState.INGAME) {
+                        currentState = State.BUSCANDO
+                        return@runDelayed
+                    }
+
                     val dropLoc = target.location
                     moverTodo(dropLoc, false)
-                    dropLoc.world.createExplosion(dropLoc, 0f, false, false)
-                    arena.alivePlayers.filter { it.location.distanceSquared(dropLoc) < 16.0 }.forEach { ejecutarMuerte(it) }
+
+                    dropLoc.world.playSound(dropLoc, Sound.ENTITY_GENERIC_EXPLODE, 1f, 1f)
+                    dropLoc.world.spawnParticle(org.bukkit.Particle.EXPLOSION, dropLoc, 3)
+
+                    val hitPlayers = arena.alivePlayers.filter { it.location.distanceSquared(dropLoc) < 16.0 }
+                    hitPlayers.forEach { ejecutarAtaque(it) }
+
+                    if (hitPlayers.isNotEmpty()) {
+                        consecutiveMisses = 0
+                    } else {
+                        consecutiveMisses++
+                    }
+
                     currentState = State.BUSCANDO
                 }, 10L)
                 return@runAtFixedRate
             }
-            moverTodo(parts[0].location.add(0.0, 2.0, 0.0), false)
+
+            val currentLoc = parts.firstOrNull()?.location ?: return@runAtFixedRate
+            moverTodo(currentLoc.add(0.0, 2.0, 0.0), false)
             subida++
         }, 1L, 2L)
     }
@@ -188,35 +213,56 @@ class GeoffreyEXE(private val plugin: LiricTNTPlugin, private val arena: Arena) 
         setGlowColor(NamedTextColor.RED)
         var ticks = 0
         plugin.server.globalRegionScheduler.runAtFixedRate(plugin, { task ->
-            if (ticks > 100 || arena.state != ArenaState.INGAME || !target.isOnline) {
+            if (!isRunning || arena.state != ArenaState.INGAME || ticks > 100 || !arena.alivePlayers.contains(target)) {
                 task.cancel()
                 setGlowColor(NamedTextColor.WHITE)
                 currentState = State.BUSCANDO
                 consecutiveMisses = 0
                 return@runAtFixedRate
             }
-            val dir = target.location.toVector().subtract(parts[0].location.toVector()).normalize()
-            moverTodo(parts[0].location.add(dir.multiply(1.2)), true)
 
-            if (parts[0].location.distanceSquared(target.location) < 3.0) {
-                ejecutarMuerte(target)
+            val currentLoc = parts.firstOrNull()?.location ?: return@runAtFixedRate
+            val dir = target.location.toVector().subtract(currentLoc.toVector()).normalize()
+            moverTodo(currentLoc.add(dir.multiply(1.2)), true)
+
+            if (currentLoc.distanceSquared(target.location) < 3.0) {
+                ejecutarAtaque(target)
                 task.cancel()
                 setGlowColor(NamedTextColor.WHITE)
                 currentState = State.BUSCANDO
+                consecutiveMisses = 0
             }
             ticks++
         }, 1L, 1L)
     }
 
-    private fun ejecutarMuerte(victim: Player) {
+    /**
+     * FIX CRASH VECTOR: Se asegura de que el vector de empuje nunca sea 0.
+     */
+    private fun ejecutarAtaque(victim: Player) {
         lastVictimUUID = victim.uniqueId
-        victim.world.createExplosion(victim.location, 0f, false, false)
+
+        // Sonido y partículas
         victim.playSound(victim.location, Sound.ENTITY_ZOMBIE_ATTACK_IRON_DOOR, 2f, 0.5f)
+        victim.world.spawnParticle(org.bukkit.Particle.DAMAGE_INDICATOR, victim.location.add(0.0, 1.0, 0.0), 10, 0.5, 0.5, 0.5, 0.1)
 
-        // Lo eliminamos de la arena de TNT
-        arena.eliminate(victim)
+        // Quita 3 corazones (6 puntos de vida)
+        victim.damage(6.0)
 
-        plugin.server.broadcast(plugin.mm.deserialize("<red><b>[!]</b> <white>${victim.name} fue triturado por <dark_red>GEOFFREY 3.0"))
+        // --- BLINDAJE ANTI-CRASH ---
+        val geoffreyLoc = parts.firstOrNull()?.location ?: victim.location
+        var knockbackDir = victim.location.toVector().subtract(geoffreyLoc.toVector())
+
+        // Si están en el mismo píxel exacto, el vector es 0 y crashea el MC. Le damos un vector falso.
+        if (knockbackDir.lengthSquared() < 0.01) {
+            knockbackDir = org.bukkit.util.Vector(1.0, 0.0, 0.0)
+        }
+
+        val knockback = knockbackDir.normalize().multiply(1.5).setY(0.5)
+        victim.velocity = knockback
+        // ---------------------------
+
+        plugin.server.broadcast(plugin.mm.deserialize("<red><b>[!]</b> <white>${victim.name} fue golpeado por <dark_red>GEOFFREY 3.0"))
     }
 
     private fun moverTodo(baseLoc: Location, lookAtTarget: Boolean) {
@@ -231,7 +277,8 @@ class GeoffreyEXE(private val plugin: LiricTNTPlugin, private val arena: Arena) 
     fun explodeAndRemove() {
         if (parts.isNotEmpty()) {
             val loc = parts[0].location
-            loc.world.createExplosion(loc, 0f, false, false)
+            loc.world.playSound(loc, Sound.ENTITY_GENERIC_EXPLODE, 1.5f, 0.5f)
+            loc.world.spawnParticle(org.bukkit.Particle.POOF, loc, 20, 1.0, 1.0, 1.0, 0.1)
         }
         remove()
     }
