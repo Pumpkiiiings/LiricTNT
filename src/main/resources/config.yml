@@ -39,12 +39,10 @@ tab:
   footer: |
     <newline>
        <#00FF00>🔔 <#FFFFFF>Jugadores: <#FFFF00>%players%   
-       <#FF00FF>👑 <#FF00FF>Pumpkingz <gray>| <#FF00FF>IkerSito   
        <#FFAA00>mc.liric.xyz   
     <newline>
 
 bossbar:
   color: "RED"
   style: "PROGRESS"
-  # Sin separadores raros, solo espacio y emojis
   text: "🏹 <#00FFFF>Mapa: <#FFFFFF>%arena%  <#FF0000>☠ Vivos: <#FFFFFF>%alive%  <#FFFF00>⏳: <#FFFFFF>%timer%s"
